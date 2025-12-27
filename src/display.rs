@@ -28,7 +28,7 @@ pub fn truncate_string(s: &str, max_len: usize) -> String {
 /// * `threshold` - Minimum difference to consider a trend (default: 0.1)
 /// 
 /// # Returns
-/// Trend indicator: "↑" (up), "↓" (down), "→" (stable)
+/// Trend indicator: "↑" (up), "↓" (down), " " (stable)
 pub fn calculate_trend_indicator(current: f32, previous: f32, threshold: f32) -> &'static str {
     let diff = current - previous;
     if diff > threshold {
@@ -36,7 +36,7 @@ pub fn calculate_trend_indicator(current: f32, previous: f32, threshold: f32) ->
     } else if diff < -threshold {
         "↓"  // Downward trend
     } else {
-        "→"  // Stable/no change
+        " "  // Stable/no change
     }
 }
 
@@ -159,14 +159,14 @@ mod tests {
     #[test]
     fn test_trend_indicator_stable() {
         let indicator = calculate_trend_indicator(1.0, 1.05, 0.1);
-        assert_eq!(indicator, "→");
+        assert_eq!(indicator, " ");
     }
 
     #[test]
     fn test_trend_indicator_at_threshold() {
         // Small change should be stable (well within threshold)
         let indicator = calculate_trend_indicator(1.05, 1.0, 0.1);
-        assert_eq!(indicator, "→");
+        assert_eq!(indicator, " ");
         
         // Clearly over threshold should be upward
         let indicator = calculate_trend_indicator(1.5, 1.0, 0.1);
@@ -174,7 +174,7 @@ mod tests {
         
         // Small negative change should be stable
         let indicator = calculate_trend_indicator(0.95, 1.0, 0.1);
-        assert_eq!(indicator, "→");
+        assert_eq!(indicator, " ");
         
         // Clearly below threshold should be downward
         let indicator = calculate_trend_indicator(0.5, 1.0, 0.1);
@@ -191,7 +191,7 @@ mod tests {
     fn test_trend_indicator_custom_threshold() {
         // With threshold of 1.0, a change of 0.5 should be stable
         let indicator = calculate_trend_indicator(1.5, 1.0, 1.0);
-        assert_eq!(indicator, "→");
+        assert_eq!(indicator, " ");
         
         // With threshold of 1.0, a change of 1.5 should be upward
         let indicator = calculate_trend_indicator(2.5, 1.0, 1.0);

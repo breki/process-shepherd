@@ -65,8 +65,7 @@ The output shows:
 - **Trend Indicator**: Shows the trend compared to the previous measurement:
   - `↑` - Upward trend (CPU usage increasing)
   - `↓` - Downward trend (CPU usage decreasing)
-  - `→` - Stable (no significant change)
-  - ` ` - No previous data available
+  - ` ` - Stable (no significant change) or no previous data available
 
 ## How It Works
 
