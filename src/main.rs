@@ -90,7 +90,7 @@ impl ProcessTracker {
         }
         
         // Sort by CPU time (descending)
-        results.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap());
+        results.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
         results
     }
 
