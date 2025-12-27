@@ -4,8 +4,6 @@ mod display;
 use chrono::Utc;
 use console::Term;
 use cpu_calculator::{calculate_average_cpu_percentage, CpuSample};
-use display::{calculate_trend_indicator, truncate_string};
-use display::{CPU_PERCENT_WIDTH, PID_WIDTH, PROCESS_NAME_WIDTH};
 use std::collections::HashMap;
 use std::thread;
 use std::time::Duration;
@@ -95,64 +93,21 @@ impl ProcessTracker {
 
         let term = Term::stdout();
 
-        // Move cursor to home position and overwrite (don't clear the screen)
-        // This is more reliable on Windows than clearing
-        if self.last_output_lines > 0 {
-            // Move cursor up to the beginning of the last output
-            let _ = term.move_cursor_up(self.last_output_lines);
-            let _ = term.clear_to_end_of_screen();
-        }
-
         // Build current CPU percentage map for trend calculation
         let mut current_cpu_burn = HashMap::new();
         for (_name, pid, cpu_percent) in &results {
             current_cpu_burn.insert(*pid, *cpu_percent);
         }
 
-        let mut line_count = 0;
-
-        println!("=== Process Shepherd - CPU Usage Tracker ===");
-        line_count += 1;
-        println!("Tracking window: {} seconds", self.retention_seconds);
-        line_count += 1;
-        println!("Timestamp: {}", Utc::now().format("%Y-%m-%d %H:%M:%S"));
-        line_count += 1;
-        println!();
-        line_count += 1;
-        println!(
-            "{:<PROCESS_NAME_WIDTH$} {:<PID_WIDTH$} {:<CPU_PERCENT_WIDTH$}",
-            "Process Name", "PID", "CPU %"
+        // Use display module to render the output with terminal handling
+        self.last_output_lines = display::display_top_processes(
+            &term,
+            &results,
+            self.retention_seconds,
+            &self.previous_cpu_burn,
+            top_n,
+            self.last_output_lines,
         );
-        line_count += 1;
-        println!("{}", "=".repeat(70));
-        line_count += 1;
-
-        for (i, (name, pid, cpu_percent)) in results.iter().take(top_n).enumerate() {
-            // Calculate trend indicator using display module helper
-            let trend_indicator = if let Some(prev_cpu_percent) = self.previous_cpu_burn.get(pid) {
-                calculate_trend_indicator(*cpu_percent, *prev_cpu_percent, 0.1)
-            } else {
-                " "  // No previous data
-            };
-
-            println!(
-                "{:<2}. {:<37} {:<10} {:<15.2} {}",
-                i + 1,
-                truncate_string(name, 37),
-                pid.as_u32(),
-                cpu_percent,
-                trend_indicator
-            );
-            line_count += 1;
-        }
-
-        if results.is_empty() {
-            println!("No process data available yet. Collecting samples...");
-            line_count += 1;
-        }
-
-        // Store the number of lines we output for next refresh
-        self.last_output_lines = line_count;
 
         // Update previous CPU burn for next trend calculation
         self.previous_cpu_burn = current_cpu_burn;
