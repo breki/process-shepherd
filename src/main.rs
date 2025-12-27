@@ -127,6 +127,8 @@ impl ProcessTracker {
 fn truncate_string(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
         s.to_string()
+    } else if max_len < 3 {
+        s.chars().take(max_len).collect()
     } else {
         format!("{}...", &s[..max_len - 3])
     }
