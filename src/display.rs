@@ -6,7 +6,7 @@ use std::collections::HashMap;
 // Display formatting constants
 pub const PROCESS_NAME_WIDTH: usize = 40;
 pub const PID_WIDTH: usize = 10;
-pub const CPU_PERCENT_WIDTH: usize = 18;
+pub const CPU_PERCENT_WIDTH: usize = 6;
 pub const DISPLAY_SEPARATOR_WIDTH: usize = 73;
 
 /// Truncate a string to a maximum length, adding ellipsis if needed
@@ -79,7 +79,7 @@ pub fn display_top_processes(
     println!();
     line_count += 1;
     println!(
-        "{:<PROCESS_NAME_WIDTH$} {:<PID_WIDTH$} {:<CPU_PERCENT_WIDTH$}",
+        "{:<PROCESS_NAME_WIDTH$} {:<PID_WIDTH$} {:>CPU_PERCENT_WIDTH$}",
         "Process Name", "PID", "CPU %"
     );
     line_count += 1;
@@ -95,7 +95,7 @@ pub fn display_top_processes(
         };
 
         println!(
-            "{:>2} {:<37} {:<PID_WIDTH$} {:>6.2}  {}",
+            "{:>2} {:<37} {:<PID_WIDTH$} {:>CPU_PERCENT_WIDTH$.2}  {}",
             i + 1,
             truncate_string(name, 37),
             pid.as_u32(),
