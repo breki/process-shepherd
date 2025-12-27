@@ -1,4 +1,5 @@
 use chrono::Utc;
+use console::Term;
 use sysinfo::Pid;
 use std::collections::HashMap;
 
@@ -39,31 +40,51 @@ pub fn calculate_trend_indicator(current: f32, previous: f32, threshold: f32) ->
     }
 }
 
-/// Display the top N processes by CPU usage
-/// 
+/// Display the top N processes by CPU usage with improved terminal handling
+///
 /// # Arguments
+/// * `term` - Terminal reference for cursor control
 /// * `results` - Vector of (process_name, pid, cpu_percentage) tuples sorted by CPU usage
 /// * `retention_seconds` - Tracking window size in seconds
 /// * `previous_cpu_burn` - Map of previous CPU percentages for trend calculation
 /// * `top_n` - Number of top processes to display
+/// * `last_output_lines` - Number of lines from the previous output (for clearing)
+///
+/// # Returns
+/// The number of lines output (to be used for next refresh)
 pub fn display_top_processes(
+    term: &Term,
     results: &[(String, Pid, f32)],
     retention_seconds: i64,
     previous_cpu_burn: &HashMap<Pid, f32>,
     top_n: usize,
-) {
-    // Clear screen (Windows-compatible)
-    print!("\x1B[2J\x1B[1;1H");
+    last_output_lines: usize,
+) -> usize {
+    // Move cursor to home position and overwrite (don't clear the screen)
+    // This is more reliable on Windows than clearing
+    if last_output_lines > 0 {
+        // Move cursor up to the beginning of the last output
+        let _ = term.move_cursor_up(last_output_lines);
+        let _ = term.clear_to_end_of_screen();
+    }
+
+    let mut line_count = 0;
 
     println!("=== Process Shepherd - CPU Usage Tracker ===");
+    line_count += 1;
     println!("Tracking window: {} seconds", retention_seconds);
+    line_count += 1;
     println!("Timestamp: {}", Utc::now().format("%Y-%m-%d %H:%M:%S"));
+    line_count += 1;
     println!();
+    line_count += 1;
     println!(
         "{:<PROCESS_NAME_WIDTH$} {:<PID_WIDTH$} {:<CPU_PERCENT_WIDTH$}",
         "Process Name", "PID", "CPU %"
     );
+    line_count += 1;
     println!("{}", "=".repeat(DISPLAY_SEPARATOR_WIDTH));
+    line_count += 1;
 
     for (i, (name, pid, cpu_percent)) in results.iter().take(top_n).enumerate() {
         // Calculate trend indicator
@@ -76,16 +97,20 @@ pub fn display_top_processes(
         println!(
             "{:<2}. {:<37} {:<PID_WIDTH$} {:<15.2} {}",
             i + 1,
-            truncate_string(name, PROCESS_NAME_WIDTH - 3),  // -3 for the rank number and dot
+            truncate_string(name, 37),
             pid.as_u32(),
             cpu_percent,
             trend_indicator
         );
+        line_count += 1;
     }
 
     if results.is_empty() {
         println!("No process data available yet. Collecting samples...");
+        line_count += 1;
     }
+
+    line_count
 }
 
 #[cfg(test)]
