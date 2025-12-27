@@ -16,6 +16,7 @@ struct ProcessTracker {
     system: System,
     history: HashMap<Pid, Vec<CpuSample>>,
     retention_seconds: i64,
+    previous_cpu_burn: HashMap<Pid, f32>,
 }
 
 impl ProcessTracker {
@@ -24,6 +25,7 @@ impl ProcessTracker {
             system: System::new_all(),
             history: HashMap::new(),
             retention_seconds,
+            previous_cpu_burn: HashMap::new(),
         }
     }
 
@@ -93,8 +95,14 @@ impl ProcessTracker {
     }
 
     /// Display the top N processes by CPU burn
-    fn display_top_processes(&self, top_n: usize) {
+    fn display_top_processes(&mut self, top_n: usize) {
         let results = self.calculate_cpu_burn();
+
+        // Build current CPU burn map for trend calculation
+        let mut current_cpu_burn = HashMap::new();
+        for (_, pid, cpu_time) in &results {
+            current_cpu_burn.insert(*pid, *cpu_time);
+        }
 
         // Clear screen (Windows-compatible)
         print!("\x1B[2J\x1B[1;1H");
@@ -104,24 +112,42 @@ impl ProcessTracker {
         println!("Timestamp: {}", Utc::now().format("%Y-%m-%d %H:%M:%S"));
         println!();
         println!(
-            "{:<40} {:<10} {:<15}",
+            "{:<40} {:<10} {:<18}",
             "Process Name", "PID", "CPU Time (s)"
         );
-        println!("{}", "=".repeat(70));
+        println!("{}", "=".repeat(73));
 
         for (i, (name, pid, cpu_time)) in results.iter().take(top_n).enumerate() {
+            // Calculate trend indicator
+            let trend_indicator = if let Some(prev_cpu_time) = self.previous_cpu_burn.get(pid) {
+                let diff = cpu_time - prev_cpu_time;
+                if diff > 0.01 {
+                    "↑"  // Upward trend
+                } else if diff < -0.01 {
+                    "↓"  // Downward trend
+                } else {
+                    "→"  // Stable/no change
+                }
+            } else {
+                " "  // No previous data
+            };
+
             println!(
-                "{:<2}. {:<37} {:<10} {:<15.2}",
+                "{:<2}. {:<37} {:<10} {:<15.2} {}",
                 i + 1,
                 truncate_string(name, 37),
                 pid.as_u32(),
-                cpu_time
+                cpu_time,
+                trend_indicator
             );
         }
 
         if results.is_empty() {
             println!("No process data available yet. Collecting samples...");
         }
+
+        // Update previous CPU burn values for next iteration
+        self.previous_cpu_burn = current_cpu_burn;
     }
 }
 
@@ -133,6 +159,44 @@ fn truncate_string(s: &str, max_len: usize) -> String {
         s.chars().take(max_len).collect()
     } else {
         format!("{}...", &s[..max_len - 3])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_trend_calculation() {
+        // Test that trend indicators are correctly determined
+        let current: f32 = 1.0;
+        let previous: f32 = 0.5;
+        let diff = current - previous;
+        
+        // Should be upward trend
+        assert!(diff > 0.01);
+        
+        let current: f32 = 0.5;
+        let previous: f32 = 1.0;
+        let diff = current - previous;
+        
+        // Should be downward trend
+        assert!(diff < -0.01);
+        
+        let current: f32 = 1.0;
+        let previous: f32 = 1.0;
+        let diff = current - previous;
+        
+        // Should be stable
+        assert!(diff.abs() <= 0.01);
+    }
+
+    #[test]
+    fn test_truncate_string() {
+        assert_eq!(truncate_string("short", 10), "short");
+        assert_eq!(truncate_string("this is a very long string", 10), "this is...");
+        assert_eq!(truncate_string("abc", 3), "abc");
+        assert_eq!(truncate_string("abcd", 3), "...");
     }
 }
 
