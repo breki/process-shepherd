@@ -1,22 +1,16 @@
-use chrono::{DateTime, Utc};
+mod cpu_calculator;
+mod display;
+
+use chrono::Utc;
 use console::Term;
+use cpu_calculator::{calculate_average_cpu_percentage, CpuSample};
+use display::{calculate_trend_indicator, truncate_string};
+use display::{CPU_PERCENT_WIDTH, PID_WIDTH, PROCESS_NAME_WIDTH};
 use std::collections::HashMap;
 use std::thread;
 use std::time::Duration;
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 
-// Display formatting constants
-const PROCESS_NAME_WIDTH: usize = 40;
-const PID_WIDTH: usize = 10;
-const CPU_PERCENT_WIDTH: usize = 18;
-const DISPLAY_SEPARATOR_WIDTH: usize = 73;
-
-/// Represents a CPU usage sample for a process at a specific time
-#[derive(Clone)]
-struct CpuSample {
-    timestamp: DateTime<Utc>,
-    cpu_usage: f32,
-}
 
 /// Tracks CPU usage history for processes
 struct ProcessTracker {
@@ -57,11 +51,7 @@ impl ProcessTracker {
 
         // Collect current CPU usage for all processes
         for (pid, process) in self.system.processes() {
-            let sample = CpuSample {
-                timestamp: now,
-                cpu_usage: process.cpu_usage(),
-            };
-
+            let sample = CpuSample::new(now, process.cpu_usage());
             self.history.entry(*pid).or_default().push(sample);
         }
 
@@ -85,11 +75,8 @@ impl ProcessTracker {
                 continue;
             }
 
-            // Calculate average CPU percentage across all samples
-            // CPU usage from sysinfo can exceed 100% on multi-core systems
-            // Divide by CPU count to normalize to 0-100% range
-            let total_cpu_usage: f32 = samples.iter().map(|s| s.cpu_usage).sum();
-            let avg_cpu_percentage = (total_cpu_usage / samples.len() as f32) / self.cpu_count;
+            // Use the cpu_calculator module for the calculation
+            let avg_cpu_percentage = calculate_average_cpu_percentage(samples, self.cpu_count);
 
             if let Some(process) = self.system.process(*pid) {
                 let name = process.name().to_string_lossy().to_string();
@@ -123,7 +110,7 @@ impl ProcessTracker {
         }
 
         let mut line_count = 0;
-        
+
         println!("=== Process Shepherd - CPU Usage Tracker ===");
         line_count += 1;
         println!("Tracking window: {} seconds", self.retention_seconds);
@@ -141,16 +128,9 @@ impl ProcessTracker {
         line_count += 1;
 
         for (i, (name, pid, cpu_percent)) in results.iter().take(top_n).enumerate() {
-            // Calculate trend indicator
+            // Calculate trend indicator using display module helper
             let trend_indicator = if let Some(prev_cpu_percent) = self.previous_cpu_burn.get(pid) {
-                let diff = cpu_percent - prev_cpu_percent;
-                if diff > 0.1 {
-                    "↑"  // Upward trend
-                } else if diff < -0.1 {
-                    "↓"  // Downward trend
-                } else {
-                    "→"  // Stable/no change
-                }
+                calculate_trend_indicator(*cpu_percent, *prev_cpu_percent, 0.1)
             } else {
                 " "  // No previous data
             };
@@ -179,21 +159,9 @@ impl ProcessTracker {
     }
 }
 
-/// Truncate a string to a maximum length, adding ellipsis if needed
-fn truncate_string(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else if max_len < 3 {
-        s.chars().take(max_len).collect()
-    } else {
-        format!("{}...", &s[..max_len - 3])
-    }
-}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_trend_calculation() {
         // Test that trend indicators are correctly determined
@@ -217,14 +185,6 @@ mod tests {
         
         // Should be stable
         assert!(diff.abs() <= 0.1);
-    }
-
-    #[test]
-    fn test_truncate_string() {
-        assert_eq!(truncate_string("short", 10), "short");
-        assert_eq!(truncate_string("this is a very long string", 10), "this is...");
-        assert_eq!(truncate_string("abc", 3), "abc");
-        assert_eq!(truncate_string("abcd", 3), "...");
     }
 }
 
