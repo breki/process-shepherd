@@ -32,7 +32,8 @@ impl ProcessTracker {
     fn new(retention_seconds: i64) -> Self {
         let system = System::new_all();
         // Get CPU count - System::new_all() already initializes CPU info
-        let cpu_count = system.cpus().len() as f32;
+        // Use max(1) to prevent division by zero
+        let cpu_count = (system.cpus().len() as f32).max(1.0);
         
         Self {
             system,
