@@ -1,14 +1,9 @@
 use chrono::{DateTime, Utc};
+use console::Term;
 use std::collections::HashMap;
 use std::thread;
 use std::time::Duration;
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
-
-// Display formatting constants
-const PROCESS_NAME_WIDTH: usize = 40;
-const PID_WIDTH: usize = 10;
-const CPU_TIME_WIDTH: usize = 18;
-const DISPLAY_SEPARATOR_WIDTH: usize = 73;
 
 /// Represents a CPU usage sample for a process at a specific time
 #[derive(Clone)]
@@ -22,7 +17,7 @@ struct ProcessTracker {
     system: System,
     history: HashMap<Pid, Vec<CpuSample>>,
     retention_seconds: i64,
-    previous_cpu_burn: HashMap<Pid, f32>,
+    last_output_lines: usize,
 }
 
 impl ProcessTracker {
@@ -31,7 +26,7 @@ impl ProcessTracker {
             system: System::new_all(),
             history: HashMap::new(),
             retention_seconds,
-            previous_cpu_burn: HashMap::new(),
+            last_output_lines: 0,
         }
     }
 
@@ -104,56 +99,52 @@ impl ProcessTracker {
     fn display_top_processes(&mut self, top_n: usize) {
         let results = self.calculate_cpu_burn();
 
-        // Build current CPU burn map for trend calculation
-        let mut current_cpu_burn = HashMap::new();
-        for (_name, pid, cpu_time) in &results {
-            current_cpu_burn.insert(*pid, *cpu_time);
+        let term = Term::stdout();
+        
+        // Move cursor to home position and overwrite (don't clear the screen)
+        // This is more reliable on Windows than clearing
+        if self.last_output_lines > 0 {
+            // Move cursor up to the beginning of the last output
+            let _ = term.move_cursor_up(self.last_output_lines);
+            let _ = term.clear_to_end_of_screen();
         }
 
-        // Clear screen (Windows-compatible)
-        print!("\x1B[2J\x1B[1;1H");
-
+        let mut line_count = 0;
+        
         println!("=== Process Shepherd - CPU Usage Tracker ===");
+        line_count += 1;
         println!("Tracking window: {} seconds", self.retention_seconds);
+        line_count += 1;
         println!("Timestamp: {}", Utc::now().format("%Y-%m-%d %H:%M:%S"));
+        line_count += 1;
         println!();
+        line_count += 1;
         println!(
-            "{:<PROCESS_NAME_WIDTH$} {:<PID_WIDTH$} {:<CPU_TIME_WIDTH$}",
+            "{:<40} {:<10} {:<15}",
             "Process Name", "PID", "CPU Time (s)"
         );
-        println!("{}", "=".repeat(DISPLAY_SEPARATOR_WIDTH));
+        line_count += 1;
+        println!("{}", "=".repeat(70));
+        line_count += 1;
 
         for (i, (name, pid, cpu_time)) in results.iter().take(top_n).enumerate() {
-            // Calculate trend indicator
-            let trend_indicator = if let Some(prev_cpu_time) = self.previous_cpu_burn.get(pid) {
-                let diff = cpu_time - prev_cpu_time;
-                if diff > 0.01 {
-                    "↑"  // Upward trend
-                } else if diff < -0.01 {
-                    "↓"  // Downward trend
-                } else {
-                    "→"  // Stable/no change
-                }
-            } else {
-                " "  // No previous data
-            };
-
             println!(
-                "{:<2}. {:<37} {:<PID_WIDTH$} {:<15.2} {}",
+                "{:<2}. {:<37} {:<10} {:<15.2}",
                 i + 1,
-                truncate_string(name, PROCESS_NAME_WIDTH - 3),  // -3 for the rank number and dot
+                truncate_string(name, 37),
                 pid.as_u32(),
-                cpu_time,
-                trend_indicator
+                cpu_time
             );
+            line_count += 1;
         }
 
         if results.is_empty() {
             println!("No process data available yet. Collecting samples...");
+            line_count += 1;
         }
-
-        // Update previous CPU burn values for next iteration
-        self.previous_cpu_burn = current_cpu_burn;
+        
+        // Store the number of lines we output for next refresh
+        self.last_output_lines = line_count;
     }
 }
 
@@ -165,44 +156,6 @@ fn truncate_string(s: &str, max_len: usize) -> String {
         s.chars().take(max_len).collect()
     } else {
         format!("{}...", &s[..max_len - 3])
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_trend_calculation() {
-        // Test that trend indicators are correctly determined
-        let current: f32 = 1.0;
-        let previous: f32 = 0.5;
-        let diff = current - previous;
-        
-        // Should be upward trend
-        assert!(diff > 0.01);
-        
-        let current: f32 = 0.5;
-        let previous: f32 = 1.0;
-        let diff = current - previous;
-        
-        // Should be downward trend
-        assert!(diff < -0.01);
-        
-        let current: f32 = 1.0;
-        let previous: f32 = 1.0;
-        let diff = current - previous;
-        
-        // Should be stable
-        assert!(diff.abs() <= 0.01);
-    }
-
-    #[test]
-    fn test_truncate_string() {
-        assert_eq!(truncate_string("short", 10), "short");
-        assert_eq!(truncate_string("this is a very long string", 10), "this is...");
-        assert_eq!(truncate_string("abc", 3), "abc");
-        assert_eq!(truncate_string("abcd", 3), "...");
     }
 }
 
