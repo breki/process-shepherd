@@ -7,7 +7,7 @@ use std::collections::HashMap;
 pub const PROCESS_NAME_WIDTH: usize = 40;
 pub const PID_WIDTH: usize = 10;
 pub const CPU_PERCENT_WIDTH: usize = 6;
-pub const DISPLAY_SEPARATOR_WIDTH: usize = 73;
+pub const DISPLAY_SEPARATOR_WIDTH: usize = 63;
 
 /// Truncate a string to a maximum length, adding ellipsis if needed
 pub fn truncate_string(s: &str, max_len: usize) -> String {
