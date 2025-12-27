@@ -4,6 +4,12 @@ use std::thread;
 use std::time::Duration;
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 
+// Display formatting constants
+const PROCESS_NAME_WIDTH: usize = 40;
+const PID_WIDTH: usize = 10;
+const CPU_TIME_WIDTH: usize = 18;
+const DISPLAY_SEPARATOR_WIDTH: usize = 73;
+
 /// Represents a CPU usage sample for a process at a specific time
 #[derive(Clone)]
 struct CpuSample {
@@ -100,7 +106,7 @@ impl ProcessTracker {
 
         // Build current CPU burn map for trend calculation
         let mut current_cpu_burn = HashMap::new();
-        for (_, pid, cpu_time) in &results {
+        for (_name, pid, cpu_time) in &results {
             current_cpu_burn.insert(*pid, *cpu_time);
         }
 
@@ -112,10 +118,10 @@ impl ProcessTracker {
         println!("Timestamp: {}", Utc::now().format("%Y-%m-%d %H:%M:%S"));
         println!();
         println!(
-            "{:<40} {:<10} {:<18}",
+            "{:<PROCESS_NAME_WIDTH$} {:<PID_WIDTH$} {:<CPU_TIME_WIDTH$}",
             "Process Name", "PID", "CPU Time (s)"
         );
-        println!("{}", "=".repeat(73));
+        println!("{}", "=".repeat(DISPLAY_SEPARATOR_WIDTH));
 
         for (i, (name, pid, cpu_time)) in results.iter().take(top_n).enumerate() {
             // Calculate trend indicator
@@ -133,9 +139,9 @@ impl ProcessTracker {
             };
 
             println!(
-                "{:<2}. {:<37} {:<10} {:<15.2} {}",
+                "{:<2}. {:<37} {:<PID_WIDTH$} {:<15.2} {}",
                 i + 1,
-                truncate_string(name, 37),
+                truncate_string(name, PROCESS_NAME_WIDTH - 3),  // -3 for the rank number and dot
                 pid.as_u32(),
                 cpu_time,
                 trend_indicator
