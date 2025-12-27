@@ -60,7 +60,8 @@ The output shows:
 - **Process Name**: Name of the executable
 - **PID**: Process ID
 - **CPU %**: Average CPU percentage consumed in the tracking window (last 60 seconds)
-  - This value accounts for multiple cores, so a process fully utilizing 2 cores would show ~200%
+  - Values are normalized to 0-100% range, regardless of the number of CPU cores
+  - A process at 100% is fully utilizing one CPU core
 - **Trend Indicator**: Shows the trend compared to the previous measurement:
   - `↑` - Upward trend (CPU usage increasing)
   - `↓` - Downward trend (CPU usage decreasing)
@@ -73,10 +74,11 @@ The tool continuously:
 1. Samples CPU usage of all processes every 2 seconds
 2. Maintains a rolling 60-second window of CPU usage data
 3. Calculates average CPU percentage across all samples in the window
-4. Ranks processes by average CPU usage percentage
-5. Displays the top 20 CPU consumers
+4. Normalizes the percentage by dividing by the number of CPU cores to get a 0-100% value
+5. Ranks processes by average CPU usage percentage
+6. Displays the top 20 CPU consumers
 
-CPU percentage is calculated as the average of all CPU usage samples in the tracking window. The percentage values account for multiple cores, so a process using 100% of two cores would display as ~200%.
+CPU percentage is calculated as the average of all CPU usage samples in the tracking window, divided by the number of CPU cores. This ensures the displayed percentage is in the 0-100% range, where 100% means the process is fully utilizing one CPU core.
 
 ## License
 

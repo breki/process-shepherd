@@ -25,16 +25,22 @@ struct ProcessTracker {
     retention_seconds: i64,
     last_output_lines: usize,
     previous_cpu_burn: HashMap<Pid, f32>,
+    cpu_count: f32,
 }
 
 impl ProcessTracker {
     fn new(retention_seconds: i64) -> Self {
+        let system = System::new_all();
+        // Get CPU count - System::new_all() already initializes CPU info
+        let cpu_count = system.cpus().len() as f32;
+        
         Self {
-            system: System::new_all(),
+            system,
             history: HashMap::new(),
             retention_seconds,
             last_output_lines: 0,
             previous_cpu_burn: HashMap::new(),
+            cpu_count,
         }
     }
 
@@ -79,9 +85,10 @@ impl ProcessTracker {
             }
 
             // Calculate average CPU percentage across all samples
-            // CPU usage is already reported as percentage by sysinfo (accounting for multiple cores)
+            // CPU usage from sysinfo can exceed 100% on multi-core systems
+            // Divide by CPU count to normalize to 0-100% range
             let total_cpu_usage: f32 = samples.iter().map(|s| s.cpu_usage).sum();
-            let avg_cpu_percentage = total_cpu_usage / samples.len() as f32;
+            let avg_cpu_percentage = (total_cpu_usage / samples.len() as f32) / self.cpu_count;
 
             if let Some(process) = self.system.process(*pid) {
                 let name = process.name().to_string_lossy().to_string();
