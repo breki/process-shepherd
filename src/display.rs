@@ -95,7 +95,7 @@ pub fn display_top_processes(
         };
 
         println!(
-            "{:<2}. {:<37} {:<PID_WIDTH$} {:<15.2} {}",
+            "{:>2} {:<37} {:<PID_WIDTH$} {:<15.2}  {}",
             i + 1,
             truncate_string(name, 37),
             pid.as_u32(),
