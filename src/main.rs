@@ -1,9 +1,11 @@
 mod cpu_calculator;
 mod display;
+mod window_info;
 
 use chrono::Utc;
 use console::Term;
 use cpu_calculator::{calculate_average_cpu_percentage, CpuSample};
+use process_shepherd::ProcessInfo;
 use std::collections::HashMap;
 use std::thread;
 use std::time::Duration;
@@ -18,6 +20,7 @@ struct ProcessTracker {
     last_output_lines: usize,
     previous_cpu_burn: HashMap<Pid, f32>,
     cpu_count: f32,
+    window_titles_cache: HashMap<u32, Vec<String>>,
 }
 
 impl ProcessTracker {
@@ -26,7 +29,7 @@ impl ProcessTracker {
         // Get CPU count - System::new_all() already initializes CPU info
         // Use max(1) to prevent division by zero
         let cpu_count = (system.cpus().len() as f32).max(1.0);
-        
+
         Self {
             system,
             history: HashMap::new(),
@@ -34,6 +37,7 @@ impl ProcessTracker {
             last_output_lines: 0,
             previous_cpu_burn: HashMap::new(),
             cpu_count,
+            window_titles_cache: HashMap::new(),
         }
     }
 
@@ -42,8 +46,11 @@ impl ProcessTracker {
         self.system.refresh_processes_specifics(
             ProcessesToUpdate::All,
             true,
-            ProcessRefreshKind::new().with_cpu(),
+            ProcessRefreshKind::new().with_cpu().with_memory(),
         );
+
+        // Refresh window titles cache once per update (only on Windows)
+        self.window_titles_cache = window_info::get_all_window_titles();
 
         let now = Utc::now();
 
@@ -65,7 +72,7 @@ impl ProcessTracker {
     }
 
     /// Calculate average CPU percentage for each process in the retention window
-    fn calculate_cpu_burn(&self) -> Vec<(String, Pid, f32)> {
+    fn calculate_cpu_burn(&self) -> Vec<ProcessInfo> {
         let mut results = Vec::new();
 
         for (pid, samples) in &self.history {
@@ -83,13 +90,82 @@ impl ProcessTracker {
 
             if let Some(process) = self.system.process(*pid) {
                 let name = process.name().to_string_lossy().to_string();
-                results.push((name, *pid, avg_cpu_percentage));
+                
+                // Extract additional information to distinguish multiple instances
+                let extra_info = self.extract_extra_info(process);
+                
+                results.push(ProcessInfo::new(
+                    name,
+                    *pid,
+                    avg_cpu_percentage,
+                    extra_info,
+                ));
             }
         }
 
         // Sort by CPU percentage (descending)
-        results.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| b.cpu_percent.partial_cmp(&a.cpu_percent).unwrap_or(std::cmp::Ordering::Equal));
         results
+    }
+    
+    /// Extract additional information from a process to help distinguish multiple instances
+    /// This includes window titles (on Windows), command line arguments, working directory, and memory usage
+    fn extract_extra_info(&self, process: &sysinfo::Process) -> String {
+        let pid = process.pid().as_u32();
+
+        // First priority: Check for window titles (Windows only)
+        // Check this process's window titles first
+        if let Some(titles) = self.window_titles_cache.get(&pid) {
+            if !titles.is_empty() {
+                // Join multiple window titles with " | "
+                let titles_str = titles.join(" | ");
+                if !titles_str.trim().is_empty() {
+                    return titles_str;
+                }
+            }
+        }
+
+        // If this process has no windows, check parent process
+        // This is useful for multi-process applications like Firefox where
+        // content processes don't own windows but their parent does
+        if let Some(parent_pid) = process.parent() {
+            if let Some(titles) = self.window_titles_cache.get(&parent_pid.as_u32()) {
+                if !titles.is_empty() {
+                    let titles_str = titles.join(" | ");
+                    if !titles_str.trim().is_empty() {
+                        return titles_str;
+                    }
+                }
+            }
+        }
+        
+        // Second priority: Command line arguments
+        let cmd = process.cmd();
+        if !cmd.is_empty() {
+            // Skip the first argument (usually the executable path)
+            // and take the next 1-2 meaningful arguments
+            let meaningful_args: Vec<String> = cmd.iter()
+                .skip(1)
+                .take(2)
+                .map(|arg| arg.to_string_lossy().to_string())
+                .collect();
+            
+            if !meaningful_args.is_empty() {
+                let args_str = meaningful_args.join(" ");
+                let memory_mb = process.memory() / 1024 / 1024;
+                return format!("{} | {}MB", args_str, memory_mb);
+            }
+        }
+        
+        // Third priority: Working directory + memory
+        if let Some(cwd) = process.cwd() {
+            let memory_mb = process.memory() / 1024 / 1024;
+            return format!("({}) | {}MB", cwd.display(), memory_mb);
+        }
+        
+        // Last resort: Just memory
+        let memory_mb = process.memory() / 1024 / 1024;
+        format!("{}MB RAM", memory_mb)
     }
 
     /// Display the top N processes by CPU usage percentage
@@ -100,8 +176,8 @@ impl ProcessTracker {
 
         // Build current CPU percentage map for trend calculation
         let mut current_cpu_burn = HashMap::new();
-        for (_name, pid, cpu_percent) in &results {
-            current_cpu_burn.insert(*pid, *cpu_percent);
+        for info in &results {
+            current_cpu_burn.insert(info.pid, info.cpu_percent);
         }
 
         // Use display module to render the output with terminal handling

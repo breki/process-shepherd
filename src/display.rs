@@ -2,12 +2,14 @@ use chrono::Utc;
 use console::Term;
 use sysinfo::Pid;
 use std::collections::HashMap;
+use crate::ProcessInfo;
 
 // Display formatting constants
-pub const PROCESS_NAME_WIDTH: usize = 40;
+pub const PROCESS_NAME_WIDTH: usize = 30;
 pub const PID_WIDTH: usize = 10;
 pub const CPU_PERCENT_WIDTH: usize = 6;
-pub const DISPLAY_SEPARATOR_WIDTH: usize = 63;
+pub const EXTRA_INFO_WIDTH: usize = 30;
+pub const DISPLAY_SEPARATOR_WIDTH: usize = 82;
 
 /// Truncate a string to a maximum length, adding ellipsis if needed
 pub fn truncate_string(s: &str, max_len: usize) -> String {
@@ -44,7 +46,7 @@ pub fn calculate_trend_indicator(current: f32, previous: f32, threshold: f32) ->
 ///
 /// # Arguments
 /// * `term` - Terminal reference for cursor control
-/// * `results` - Vector of (process_name, pid, cpu_percentage) tuples sorted by CPU usage
+/// * `results` - Vector of ProcessInfo sorted by CPU usage
 /// * `retention_seconds` - Tracking window size in seconds
 /// * `previous_cpu_burn` - Map of previous CPU percentages for trend calculation
 /// * `top_n` - Number of top processes to display
@@ -54,7 +56,7 @@ pub fn calculate_trend_indicator(current: f32, previous: f32, threshold: f32) ->
 /// The number of lines output (to be used for next refresh)
 pub fn display_top_processes(
     term: &Term,
-    results: &[(String, Pid, f32)],
+    results: &[ProcessInfo],
     retention_seconds: i64,
     previous_cpu_burn: &HashMap<Pid, f32>,
     top_n: usize,
@@ -79,28 +81,33 @@ pub fn display_top_processes(
     println!();
     line_count += 1;
     println!(
-        "{:<PROCESS_NAME_WIDTH$} {:<PID_WIDTH$} {:>CPU_PERCENT_WIDTH$}",
-        "Process Name", "PID", "CPU %"
+        "{:<PROCESS_NAME_WIDTH$} {:<PID_WIDTH$} {:>CPU_PERCENT_WIDTH$} {:<EXTRA_INFO_WIDTH$}",
+        "Process Name", "PID", "CPU %", "Details"
     );
     line_count += 1;
     println!("{}", "=".repeat(DISPLAY_SEPARATOR_WIDTH));
     line_count += 1;
 
-    for (i, (name, pid, cpu_percent)) in results.iter().take(top_n).enumerate() {
+    for (i, info) in results.iter().take(top_n).enumerate() {
         // Calculate trend indicator
-        let trend_indicator = if let Some(prev_cpu_percent) = previous_cpu_burn.get(pid) {
-            calculate_trend_indicator(*cpu_percent, *prev_cpu_percent, 0.1)
+        let trend_indicator = if let Some(prev_cpu_percent) = previous_cpu_burn.get(&info.pid) {
+            calculate_trend_indicator(info.cpu_percent, *prev_cpu_percent, 0.1)
         } else {
             " "  // No previous data
         };
 
+        // Format the output with all columns
+        let name_display = truncate_string(&info.name, PROCESS_NAME_WIDTH - 3);
+        let extra_display = truncate_string(&info.extra_info, EXTRA_INFO_WIDTH);
+
         println!(
-            "{:>2} {:<37} {:<PID_WIDTH$} {:>CPU_PERCENT_WIDTH$.2}  {}",
+            "{:>2} {:<27} {:<PID_WIDTH$} {:>CPU_PERCENT_WIDTH$.2}  {} {:<EXTRA_INFO_WIDTH$}",
             i + 1,
-            truncate_string(name, 37),
-            pid.as_u32(),
-            cpu_percent,
-            trend_indicator
+            name_display,
+            info.pid.as_u32(),
+            info.cpu_percent,
+            trend_indicator,
+            extra_display,
         );
         line_count += 1;
     }

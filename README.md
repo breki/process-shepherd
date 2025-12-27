@@ -57,11 +57,16 @@ The program will:
 ### Display Format
 
 The output shows:
-- **Process Name**: Name of the executable
+- **Process**: Name of the executable
 - **PID**: Process ID
 - **CPU %**: Average CPU percentage consumed in the tracking window (last 60 seconds)
   - Values are normalized to 0-100% range, regardless of the number of CPU cores
   - A process at 100% is fully utilizing one CPU core
+- **Details**: Additional information to distinguish multiple instances of the same process
+  - **On Windows**: Shows actual window titles for processes with visible windows (e.g., browser tabs, document names)
+  - **On all platforms**: Falls back to command line arguments and memory usage when window titles are not available
+  - Shows working directory and memory if no command line arguments are available
+  - Helps identify which instance is which when multiple processes share the same name (e.g., multiple Firefox windows)
 - **Trend Indicator**: Shows the trend compared to the previous measurement:
   - `↑` - Upward trend (CPU usage increasing)
   - `↓` - Downward trend (CPU usage decreasing)

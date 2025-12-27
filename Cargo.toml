@@ -9,3 +9,10 @@ description = "A CLI utility to track CPU usage per process on Windows"
 sysinfo = "0.32"
 chrono = "0.4"
 console = "0.15"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+] }
