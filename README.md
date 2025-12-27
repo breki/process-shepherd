@@ -60,6 +60,11 @@ The output shows:
 - **Process Name**: Name of the executable
 - **PID**: Process ID
 - **CPU Time (s)**: Total CPU seconds consumed in the tracking window (last 60 seconds)
+- **Trend Indicator**: Shows the trend compared to the previous measurement:
+  - `↑` - Upward trend (CPU usage increasing)
+  - `↓` - Downward trend (CPU usage decreasing)
+  - `→` - Stable (no significant change)
+  - ` ` - No previous data available
 
 ## How It Works
 
