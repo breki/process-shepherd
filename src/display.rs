@@ -16,12 +16,14 @@ pub const DISPLAY_SEPARATOR_WIDTH: usize = 94;
 
 /// Truncate a string to a maximum length, adding ellipsis if needed
 pub fn truncate_string(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
+    let char_count = s.chars().count();
+    if char_count <= max_len {
         s.to_string()
     } else if max_len < 3 {
         s.chars().take(max_len).collect()
     } else {
-        format!("{}...", &s[..max_len - 3])
+        let truncated: String = s.chars().take(max_len - 3).collect();
+        format!("{}...", truncated)
     }
 }
 
@@ -177,6 +179,17 @@ mod tests {
     fn test_truncate_string_very_small() {
         assert_eq!(truncate_string("abcd", 2), "ab");
         assert_eq!(truncate_string("a", 1), "a");
+    }
+
+    #[test]
+    fn test_truncate_string_multibyte_chars() {
+        // Test with multi-byte UTF-8 characters (·, —, etc.)
+        assert_eq!(truncate_string("Issue · Mozilla", 20), "Issue · Mozilla");
+        assert_eq!(truncate_string("Configurable 1% threshold · Issue #20", 30), "Configurable 1% threshold ·...");
+        assert_eq!(truncate_string("Test—with—em-dashes", 15), "Test—with—em...");
+        // Emoji test (4-byte UTF-8)
+        assert_eq!(truncate_string("Hello 👋 World", 15), "Hello 👋 World");
+        assert_eq!(truncate_string("Hello 👋 World", 10), "Hello 👋...");
     }
 
     #[test]
