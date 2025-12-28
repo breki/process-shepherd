@@ -9,6 +9,7 @@ description = "A CLI utility to track CPU usage per process on Windows"
 sysinfo = "0.32"
 chrono = "0.4"
 console = "0.15"
+clap = { version = "4.5", features = ["derive"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [

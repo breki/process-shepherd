@@ -3,6 +3,7 @@ mod display;
 mod window_info;
 
 use chrono::Utc;
+use clap::Parser;
 use console::Term;
 use cpu_calculator::{calculate_average_cpu_percentage, CpuSample};
 use process_shepherd::ProcessInfo;
@@ -10,6 +11,15 @@ use std::collections::HashMap;
 use std::thread;
 use std::time::Duration;
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
+
+/// Process Shepherd - Track CPU usage per process
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Minimum CPU percentage threshold to display processes (default: 1.0)
+    #[arg(long = "cpu-threshold", default_value_t = 1.0)]
+    cpu_threshold: f32,
+}
 
 
 /// Tracks CPU usage history for processes
@@ -21,10 +31,11 @@ struct ProcessTracker {
     previous_cpu_burn: HashMap<Pid, f32>,
     cpu_count: f32,
     window_titles_cache: HashMap<u32, Vec<String>>,
+    cpu_threshold: f32,
 }
 
 impl ProcessTracker {
-    fn new(retention_seconds: i64) -> Self {
+    fn new(retention_seconds: i64, cpu_threshold: f32) -> Self {
         let system = System::new_all();
         // Get CPU count - System::new_all() already initializes CPU info
         // Use max(1) to prevent division by zero
@@ -38,6 +49,7 @@ impl ProcessTracker {
             previous_cpu_burn: HashMap::new(),
             cpu_count,
             window_titles_cache: HashMap::new(),
+            cpu_threshold,
         }
     }
 
@@ -83,8 +95,8 @@ impl ProcessTracker {
             // Use the cpu_calculator module for the calculation
             let avg_cpu_percentage = calculate_average_cpu_percentage(samples, self.cpu_count);
 
-            // Filter out processes with less than 1% CPU
-            if avg_cpu_percentage < 1.0 {
+            // Filter out processes below the configured CPU threshold
+            if avg_cpu_percentage < self.cpu_threshold {
                 continue;
             }
 
@@ -224,9 +236,10 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_processes_below_one_percent() {
-        // Test that processes with less than 1% CPU are filtered out
-        let _tracker = ProcessTracker::new(60);
+    fn test_filter_processes_below_threshold() {
+        // Test that processes below the threshold are filtered out
+        let threshold = 1.0;
+        let _tracker = ProcessTracker::new(60, threshold);
         
         // Mock data: processes with various CPU percentages
         // In a real scenario, these would be calculated from actual process data
@@ -234,45 +247,68 @@ mod tests {
         
         // Process with 0.5% CPU should be filtered
         let cpu_below_threshold = 0.5f32;
-        assert!(cpu_below_threshold < 1.0, "CPU below 1% should be less than 1.0");
+        assert!(cpu_below_threshold < threshold, "CPU below threshold should be less than threshold");
         
         // Process with exactly 1% CPU should be included
         let cpu_at_threshold = 1.0f32;
-        assert!(cpu_at_threshold >= 1.0, "CPU at 1% should be >= 1.0");
+        assert!(cpu_at_threshold >= threshold, "CPU at threshold should be >= threshold");
         
         // Process with 1.5% CPU should be included
         let cpu_above_threshold = 1.5f32;
-        assert!(cpu_above_threshold >= 1.0, "CPU above 1% should be >= 1.0");
+        assert!(cpu_above_threshold >= threshold, "CPU above threshold should be >= threshold");
     }
 
     #[test]
     fn test_filter_edge_cases() {
-        // Test edge cases for the 1% CPU filter
+        // Test edge cases for the CPU filter
+        let threshold = 1.0;
         
         // Just below threshold
         let cpu = 0.99f32;
-        assert!(cpu < 1.0, "0.99% should be filtered");
+        assert!(cpu < threshold, "0.99% should be filtered");
         
         // Exactly at threshold
         let cpu = 1.0f32;
-        assert!(cpu >= 1.0, "1.0% should be included");
+        assert!(cpu >= threshold, "1.0% should be included");
         
         // Just above threshold
         let cpu = 1.01f32;
-        assert!(cpu >= 1.0, "1.01% should be included");
+        assert!(cpu >= threshold, "1.01% should be included");
+    }
+
+    #[test]
+    fn test_custom_threshold() {
+        // Test that custom thresholds work correctly
+        let threshold_5 = 5.0;
+        let _tracker = ProcessTracker::new(60, threshold_5);
+        
+        // Process with 3% CPU should be filtered with 5% threshold
+        let cpu_below = 3.0f32;
+        assert!(cpu_below < threshold_5, "3% should be filtered with 5% threshold");
+        
+        // Process with 5% CPU should be included
+        let cpu_at = 5.0f32;
+        assert!(cpu_at >= threshold_5, "5% should be included with 5% threshold");
+        
+        // Process with 7% CPU should be included
+        let cpu_above = 7.0f32;
+        assert!(cpu_above >= threshold_5, "7% should be included with 5% threshold");
     }
 }
 
 fn main() {
+    let args = Args::parse();
+    
     println!("Process Shepherd - Starting CPU tracking...");
     println!("Monitoring CPU usage across all processes.");
+    println!("CPU threshold: {:.1}%", args.cpu_threshold);
     println!("Press Ctrl+C to exit.\n");
 
     const UPDATE_INTERVAL_SECS: u64 = 2; // Sample every 2 seconds
     const RETENTION_SECS: i64 = 60; // Track last 60 seconds
     const TOP_N: usize = 20; // Display top 20 processes
 
-    let mut tracker = ProcessTracker::new(RETENTION_SECS);
+    let mut tracker = ProcessTracker::new(RETENTION_SECS, args.cpu_threshold);
 
     // Initial refresh to populate process list
     tracker.update();

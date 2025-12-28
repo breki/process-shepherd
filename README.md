@@ -38,7 +38,7 @@ cargo build --release --target x86_64-pc-windows-gnu
 
 ## Usage
 
-Simply run the executable:
+Run the executable with optional command-line arguments:
 
 ```bash
 # Windows
@@ -46,13 +46,24 @@ process-shepherd.exe
 
 # Linux/macOS
 ./process-shepherd
+
+# With custom CPU threshold (e.g., 5%)
+./process-shepherd --cpu-threshold 5.0
 ```
+
+### Command-Line Options
+
+- `--cpu-threshold <value>`: Minimum CPU percentage threshold to display processes (default: 1.0)
+  - Only processes with average CPU usage >= this threshold will be displayed
+  - Useful for filtering out low-activity processes when monitoring high-CPU scenarios
+  - Example: `--cpu-threshold 5.0` will only show processes using 5% or more CPU
 
 The program will:
 1. Start monitoring all running processes
 2. Collect CPU usage samples every 2 seconds
 3. Display the top 20 processes that have the highest average CPU usage in the last minute
-4. Continue running until you press Ctrl+C
+4. Only show processes that meet or exceed the CPU threshold
+5. Continue running until you press Ctrl+C
 
 ### Display Format
 
