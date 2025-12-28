@@ -6,15 +6,17 @@ pub struct ProcessInfo {
     pub name: String,
     pub pid: Pid,
     pub cpu_percent: f32,
+    pub memory_bytes: u64,
     pub extra_info: String,
 }
 
 impl ProcessInfo {
-    pub fn new(name: String, pid: Pid, cpu_percent: f32, extra_info: String) -> Self {
+    pub fn new(name: String, pid: Pid, cpu_percent: f32, memory_bytes: u64, extra_info: String) -> Self {
         Self {
             name,
             pid,
             cpu_percent,
+            memory_bytes,
             extra_info,
         }
     }
@@ -31,12 +33,14 @@ mod tests {
             "test.exe".to_string(),
             Pid::from_u32(1234),
             50.5,
+            1024 * 1024 * 100, // 100 MB
             "extra details".to_string(),
         );
         
         assert_eq!(info.name, "test.exe");
         assert_eq!(info.pid.as_u32(), 1234);
         assert_eq!(info.cpu_percent, 50.5);
+        assert_eq!(info.memory_bytes, 1024 * 1024 * 100);
         assert_eq!(info.extra_info, "extra details");
     }
 
@@ -46,9 +50,11 @@ mod tests {
             "simple.exe".to_string(),
             Pid::from_u32(5678),
             25.0,
+            512 * 1024, // 512 KB
             String::new(),
         );
         
+        assert_eq!(info.memory_bytes, 512 * 1024);
         assert_eq!(info.extra_info, "");
     }
 
@@ -59,9 +65,11 @@ mod tests {
             "app.exe".to_string(),
             Pid::from_u32(9999),
             75.5,
+            2 * 1024 * 1024 * 1024, // 2 GB
             long_info.clone(),
         );
         
+        assert_eq!(info.memory_bytes, 2 * 1024 * 1024 * 1024);
         assert_eq!(info.extra_info, long_info);
     }
 }
