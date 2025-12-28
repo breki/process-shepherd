@@ -17,8 +17,21 @@ use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Minimum CPU percentage threshold to display processes (default: 1.0)
-    #[arg(long = "cpu-threshold", default_value_t = 1.0)]
+    #[arg(long = "cpu-threshold", default_value_t = 1.0, value_parser = validate_threshold)]
     cpu_threshold: f32,
+}
+
+/// Validate that the CPU threshold is within a reasonable range
+fn validate_threshold(s: &str) -> Result<f32, String> {
+    let value: f32 = s.parse().map_err(|_| format!("'{}' is not a valid number", s))?;
+    
+    if value < 0.0 {
+        Err("CPU threshold must be non-negative".to_string())
+    } else if value > 100.0 {
+        Err("CPU threshold must be <= 100.0 (percentage)".to_string())
+    } else {
+        Ok(value)
+    }
 }
 
 
@@ -293,6 +306,23 @@ mod tests {
         // Process with 7% CPU should be included
         let cpu_above = 7.0f32;
         assert!(cpu_above >= threshold_5, "7% should be included with 5% threshold");
+    }
+
+    #[test]
+    fn test_validate_threshold_valid() {
+        // Test that valid thresholds are accepted
+        assert!(validate_threshold("0.0").is_ok());
+        assert!(validate_threshold("1.0").is_ok());
+        assert!(validate_threshold("50.0").is_ok());
+        assert!(validate_threshold("100.0").is_ok());
+    }
+
+    #[test]
+    fn test_validate_threshold_invalid() {
+        // Test that invalid thresholds are rejected
+        assert!(validate_threshold("-1.0").is_err());
+        assert!(validate_threshold("150.0").is_err());
+        assert!(validate_threshold("not_a_number").is_err());
     }
 }
 
