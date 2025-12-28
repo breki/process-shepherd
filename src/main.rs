@@ -90,6 +90,7 @@ impl ProcessTracker {
 
             if let Some(process) = self.system.process(*pid) {
                 let name = process.name().to_string_lossy().to_string();
+                let memory_bytes = process.memory();
                 
                 // Extract additional information to distinguish multiple instances
                 let extra_info = self.extract_extra_info(process);
@@ -98,6 +99,7 @@ impl ProcessTracker {
                     name,
                     *pid,
                     avg_cpu_percentage,
+                    memory_bytes,
                     extra_info,
                 ));
             }
@@ -151,21 +153,17 @@ impl ProcessTracker {
                 .collect();
             
             if !meaningful_args.is_empty() {
-                let args_str = meaningful_args.join(" ");
-                let memory_mb = process.memory() / 1024 / 1024;
-                return format!("{} | {}MB", args_str, memory_mb);
+                return meaningful_args.join(" ");
             }
         }
         
-        // Third priority: Working directory + memory
+        // Third priority: Working directory
         if let Some(cwd) = process.cwd() {
-            let memory_mb = process.memory() / 1024 / 1024;
-            return format!("({}) | {}MB", cwd.display(), memory_mb);
+            return format!("({})", cwd.display());
         }
         
-        // Last resort: Just memory
-        let memory_mb = process.memory() / 1024 / 1024;
-        format!("{}MB RAM", memory_mb)
+        // Last resort: Empty string
+        String::new()
     }
 
     /// Display the top N processes by CPU usage percentage
