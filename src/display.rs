@@ -5,9 +5,11 @@ use std::collections::HashMap;
 use crate::ProcessInfo;
 
 // Display formatting constants
-pub const PROCESS_NAME_WIDTH: usize = 30;
+pub const LINE_NUMBER_WIDTH: usize = 2;
+pub const PROCESS_NAME_DISPLAY_WIDTH: usize = 27; // Actual display width for process names
 pub const PID_WIDTH: usize = 10;
 pub const CPU_PERCENT_WIDTH: usize = 6;
+pub const TREND_SPACING_WIDTH: usize = 4; // 2 spaces + 1 trend indicator + 1 space before Details
 pub const EXTRA_INFO_WIDTH: usize = 30;
 pub const DISPLAY_SEPARATOR_WIDTH: usize = 82;
 
@@ -81,8 +83,8 @@ pub fn display_top_processes(
     println!();
     line_count += 1;
     println!(
-        "{:<PROCESS_NAME_WIDTH$} {:<PID_WIDTH$} {:>CPU_PERCENT_WIDTH$} {:<EXTRA_INFO_WIDTH$}",
-        "Process Name", "PID", "CPU %", "Details"
+        "{:>LINE_NUMBER_WIDTH$} {:<PROCESS_NAME_DISPLAY_WIDTH$} {:<PID_WIDTH$} {:>CPU_PERCENT_WIDTH$} {:TREND_SPACING_WIDTH$}{:<EXTRA_INFO_WIDTH$}",
+        "", "Process Name", "PID", "CPU %", "", "Details"
     );
     line_count += 1;
     println!("{}", "=".repeat(DISPLAY_SEPARATOR_WIDTH));
@@ -97,11 +99,11 @@ pub fn display_top_processes(
         };
 
         // Format the output with all columns
-        let name_display = truncate_string(&info.name, PROCESS_NAME_WIDTH - 3);
+        let name_display = truncate_string(&info.name, PROCESS_NAME_DISPLAY_WIDTH);
         let extra_display = truncate_string(&info.extra_info, EXTRA_INFO_WIDTH);
 
         println!(
-            "{:>2} {:<27} {:<PID_WIDTH$} {:>CPU_PERCENT_WIDTH$.2}  {} {:<EXTRA_INFO_WIDTH$}",
+            "{:>LINE_NUMBER_WIDTH$} {:<PROCESS_NAME_DISPLAY_WIDTH$} {:<PID_WIDTH$} {:>CPU_PERCENT_WIDTH$.2}  {} {:<EXTRA_INFO_WIDTH$}",
             i + 1,
             name_display,
             info.pid.as_u32(),
